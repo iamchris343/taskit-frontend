@@ -19,7 +19,7 @@ export default function Home() {
   const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState('');
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/tasks';
+  const API_URL = process.env.NEXT_API_URL || 'http://localhost:5000/api/tasks';
 
   const fetchTasks = useCallback(async () => {
     try {
