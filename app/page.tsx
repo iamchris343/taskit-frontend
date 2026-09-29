@@ -1,7 +1,7 @@
 'use client';
-import React from 'react';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Task {
   _id: string;
@@ -12,6 +12,7 @@ interface Task {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -19,11 +20,14 @@ export default function Home() {
   const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState('');
 
-  const API_URL = process.env.NEXT_API_URL || 'http://localhost:5000/api/tasks';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-  const fetchTasks = useCallback(async () => {
+  
+  const fetchTasks = useCallback(async (token: string) => {
     try {
-      const res = await fetch(API_URL);
+      const res = await fetch(`${API_URL}/tasks`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const data = await res.json();
       if (data.success) {
         setTasks(data.data);
@@ -33,19 +37,29 @@ export default function Home() {
     }
   }, [API_URL]);
 
-  // Fetch tasks on load
+  // Check auth and fetch tasks on load
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login'); // Redirect if not logged in
+      return;
+    }
+    fetchTasks(token);
+  }, [fetchTasks, router]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
+    const token = localStorage.getItem('token');
+    if (!token) return router.push('/login');
 
     try {
-      const res = await fetch(API_URL, {
+      const res = await fetch(`${API_URL}/tasks`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify({ title, description, status, dueDate: dueDate || null })
       });
 
@@ -56,7 +70,7 @@ export default function Home() {
         setDescription('');
         setStatus('todo');
         setDueDate('');
-        fetchTasks();
+        fetchTasks(token);
       } else {
         setError(data.error);
       }
@@ -66,11 +80,17 @@ export default function Home() {
   };
 
   const handleDelete = async (id: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return router.push('/login');
+
     try {
-      const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/tasks/${id}`, { 
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const data = await res.json();
       if (data.success) {
-        fetchTasks();
+        fetchTasks(token);
       }
     } catch (err) {
       console.error('Failed to delete task', err);
@@ -79,11 +99,19 @@ export default function Home() {
 
   return (
     <main className="max-w-2xl mx-auto p-6 font-sans">
-      <h1 className="text-3xl font-bold text-white mb-6">Taskit</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-white">Taskit</h1>
+        <button
+          onClick={() => { localStorage.removeItem('token'); router.push('/login'); }}
+          className="bg-red-600 text-white text-sm px-3 py-1.5 rounded hover:bg-red-700 font-semibold"
+        >
+          Logout
+        </button>
+      </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-black p-6 rounded-lg shadow-md mb-8 border">
-        <h2 className="text-xl font-semibold mb-4 ">Add New Task</h2>
+      <form onSubmit={handleSubmit} className="bg-black p-6 rounded-lg shadow-md mb-8 border border-gray-800">
+        <h2 className="text-xl font-semibold mb-4 text-white">Add New Task</h2>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         
         <input
@@ -91,7 +119,7 @@ export default function Home() {
           placeholder="Task Title (required)"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full p-2 border rounded mb-3"
+          className="w-full p-2 border rounded mb-3 bg-gray-900 text-white border-gray-700"
           required
         />
         
@@ -99,13 +127,13 @@ export default function Home() {
           placeholder="Description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="w-full p-2 border rounded mb-3"
+          className="w-full p-2 border rounded mb-3 bg-gray-900 text-white border-gray-700"
         />
 
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="w-full p-2 border rounded mb-3"
+          className="w-full p-2 border rounded mb-3 bg-gray-900 text-white border-gray-700"
         >
           <option value="todo">Todo</option>
           <option value="in-progress">In-Progress</option>
@@ -116,7 +144,7 @@ export default function Home() {
           type="date"
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
-          className="w-full p-2 border rounded mb-4"
+          className="w-full p-2 border rounded mb-4 bg-gray-900 text-white border-gray-700"
         />
 
         <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded font-semibold hover:bg-blue-700">
@@ -125,10 +153,10 @@ export default function Home() {
       </form>
 
       {/* Task List */}
-      <h2 className="text-xl font-semibold mb-4">Your Tasks</h2>
+      <h2 className="text-xl font-semibold mb-4 text-white">Your Tasks</h2>
       <div className="space-y-4">
         {tasks.length === 0 ? (
-          <p className="text-gray-500">No tasks found.</p>
+          <p className="text-gray-400">No tasks found.</p>
         ) : (
           tasks.map((task) => (
             <div key={task._id} className="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500 flex justify-between items-start">
